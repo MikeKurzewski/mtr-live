@@ -2,11 +2,13 @@ import { stations, lines, byLine, stationLines, majorStations } from './network.
 import { LiveNetwork, isFresh } from './live.js';
 import { TrainMotion } from './motion.js';
 import { coastPaths, project, segmentGeometry, pointAlong } from './geography.js';
+import { nearestStation, locationDescription, locationError } from './location.js';
 const $ = id => document.getElementById(id);
 const ns = 'http://www.w3.org/2000/svg';
 function svg(tag, attrs = {}, parent) { const el = document.createElementNS(ns, tag); for(const [k,v] of Object.entries(attrs)) el.setAttribute(k,v); if(parent) parent.append(el); return el; }
 function text(tag, content, className, parent) { const el = document.createElement(tag); el.textContent = content; if(className) el.className=className; if(parent) parent.append(el); return el; }
 let selectedLine = null, selectedStation = 'ADM', paused = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let selectionRevision = 0;
 let view = { x:0,y:0,w:1540,h:1100 }, dragged = false, lastRender = 0;
 const motion = new TrainMotion();
 const root = $('map-content'), lineGroups = new Map(), markerElements = new Map(), railGeometry = new Map();
@@ -58,6 +60,7 @@ function setLine(id) {
 }
 $('all-lines').addEventListener('click',()=>setLine(null));
 function selectStation(id) {
+  selectionRevision++;
   selectedStation=id;
   if(selectedLine && !byLine[selectedLine].stations.includes(id)) setLine(null);
   document.querySelectorAll('.station').forEach(g=>{g.classList.toggle('selected',g.dataset.station===id);g.querySelector('.selected-ring')?.remove();});
@@ -186,5 +189,33 @@ $('about-open').addEventListener('click',()=>$('about').showModal());$('about-cl
 $('about').addEventListener('click',e=>{if(e.target===$('about')){const r=$('about').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)$('about').close();}});
 function tickClock(){$('clock').textContent=new Date().toLocaleTimeString('en-GB',{timeZone:'Asia/Hong_Kong'});}tickClock();setInterval(tickClock,1000);
 selectStation('ADM');document.fonts.ready.then(layoutLabels);requestAnimationFrame(animate);
+function locateStation() {
+  const button=$('locate'),status=$('location-status'),revision=selectionRevision;
+  if(button.disabled)return;
+  if(!window.isSecureContext){status.textContent='Location needs HTTPS or localhost. You can still select any station on the map.';return;}
+  if(!navigator.geolocation){status.textContent='This browser does not support device location. Choose a station on the map.';return;}
+  button.disabled=true;button.textContent='⌖ Finding you…';status.textContent='Waiting for your device location…';
+  const finish=()=>{button.disabled=false;button.textContent='⌖ Use my location';};
+  try {
+    navigator.geolocation.getCurrentPosition(position=>{
+      finish();
+      try {
+        const nearest=nearestStation(position.coords);
+        status.textContent=locationDescription(nearest,position.coords.accuracy);
+        if(selectionRevision!==revision){status.textContent+=' Keeping the station you selected.';return;}
+        selectStation(nearest.station.id);
+        const s=nearest.station;view={x:s.x-250,y:s.y-178.57,w:500,h:357.14};applyView();
+      } catch {status.textContent='Your device returned an invalid location. Try again, or select a station.';}
+    },error=>{finish();status.textContent=locationError(error);},{enableHighAccuracy:true,timeout:12000,maximumAge:60000});
+  } catch(error){finish();status.textContent=locationError(error);}
+}
+$('locate').addEventListener('click',locateStation);
+// Only reuse an existing grant automatically; first-time access needs a user gesture.
+const startupRevision=selectionRevision;
+if(navigator.permissions && navigator.geolocation && window.isSecureContext){
+  navigator.permissions.query({name:'geolocation'}).then(permission=>{
+    if(permission.state==='granted'&&selectionRevision===startupRevision)locateStation();
+  }).catch(()=>{});
+}
 async function poll(){if(!document.hidden)await network.refresh(selectedStation);setTimeout(poll,Math.max(30000,network.backoff-Date.now()));}poll();
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-network.lastCycle>30000)network.refresh(selectedStation);});

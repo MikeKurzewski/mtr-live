@@ -23,6 +23,7 @@ npm run build # Produces dist/ for any static web host
 - Zoomable, draggable geographic SVG map with a faded coastline; searchable stations and line isolation. Trains follow curved railway alignments.
 - Smooth arrival-based motion, larger markers with rear direction arrows, subtle station arrival pulses, amber delay outlines and pause control.
 - Station boards with destinations, platforms, countdowns and delay notices.
+- Optional device location selects the nearest station, with straight-line distance and accuracy information. Manual station selection always remains available.
 - Live Hong Kong clock, freshness reporting, partial-data and offline handling.
 - Responsive desktop/mobile layouts, keyboard-operable stations and reduced-motion support.
 - No accounts, secrets, backend or analytics.
@@ -36,6 +37,8 @@ Moving markers are separate **approach estimates**, inferred from imminent upcom
 The actual arrival board remains the authoritative part of the UI. Verify journeys and service notices with MTR.
 
 ## Data integration
+
+The spotlight starts at Admiralty unless location permission has already been granted. **Use my location** requests a single browser location reading and selects the nearest station using geographic distance. Previously granted permission is reused automatically on page load. The app does not store or transmit coordinates, and does not track location in the background. Permission denial, unavailable location, and timeout leave manual selection available. A manual selection made during a pending lookup takes priority. Device location requires HTTPS or localhost; proximity does not prove the user is inside a station or measure walking distance.
 
 Endpoint: `https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php?line=ISL&sta=ADM&lang=EN`
 
