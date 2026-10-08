@@ -14,7 +14,7 @@ Open http://127.0.0.1:5173. No installation is necessary.
 
 ```sh
 npm test       # Feed parsing, timestamps, topology, estimation and rate-limit tests
-npm run build # Produces dist/ for any static web host
+npm run build # Produces frontend assets in dist/ for the Node server
 ```
 
 ## Features
@@ -26,7 +26,7 @@ npm run build # Produces dist/ for any static web host
 - Optional device location selects the nearest station, with straight-line distance and accuracy information. Manual station selection always remains available.
 - Live Hong Kong clock, freshness reporting, partial-data and offline handling.
 - Responsive desktop/mobile layouts, keyboard-operable stations and reduced-motion support.
-- No accounts, secrets, backend or analytics.
+- Shared Node server cache; no accounts, API keys, runtime dependencies or analytics.
 
 ## What “live” means
 
@@ -43,17 +43,32 @@ The spotlight starts at Admiralty unless location permission has already been gr
 Endpoint: `https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php?line=ISL&sta=ADM&lang=EN`
 
 - Covers AEL, TCL, TML, TKL, EAL, SIL, TWL, ISL, KTL and DRL. Light Rail and High Speed Rail are not included in this API.
-- Network polling runs with six concurrent requests, with 30 seconds between completed cycles. The upstream dataset updates approximately every 10 seconds; local complete-network refresh takes longer.
-- Prioritises the selected station when a refresh begins. Background tabs do not start new scheduled refreshes; an in-flight cycle may finish.
+- One server polls all 121 station/line feeds on a **12-second per-feed schedule**, staggered across the interval with at most six concurrent requests and an eight-second request timeout. This is approximately **605 upstream calls/minute total**, independent of visitor count, when responses are fast enough. Slow responses and backoff extend the interval. MTR does not publish a numeric quota; 12 seconds is our target, not a guaranteed permitted rate.
+- Browsers read `/api/network` every four seconds while visible. They never contact MTR directly. Forty or forty thousand page views do not start extra upstream jobs. JSON snapshots are serialized and compressed once per cache version and shared across readers; ETags support `304 Not Modified` responses. A busy scheduler skips overlapping jobs, rather than creating duplicates.
+- The cache warms progressively during its first interval and runs while the server is alive, even without visitors. It is an in-memory cache and warms again after restart. Hidden browser tabs stop starting cache reads; the server keeps polling.
 - Explicit UTC+8 parsing avoids user-timezone errors. Feed timestamps older than 90 seconds are excluded from animation and live boards.
-- Invalid predictions are filtered. Failures do not generate fake data. HTTP 429 stops queue processing and triggers at least a 60-second backoff.
-- Uses the API's browser CORS support. On a restrictive network, the app shows unavailable data and retries. For a large public deployment, use a shared caching proxy to reduce per-viewer upstream traffic.
+- Invalid predictions are filtered. Failed upstream boards are marked unavailable; their previous rows remain cached but do not animate. When the browser loses the server connection, its last valid snapshot remains usable only until the original MTR timestamps exceed 90 seconds.
+- HTTP 429 pauses all new upstream jobs for at least 60 seconds. The cache honors `Retry-After` (seconds or HTTP date), increases repeated backoff up to 15 minutes, and staggers recovery. Existing in-flight requests may finish. Requests from visitors cannot bypass the backoff.
+- The browser and API share an origin; no MTR browser CORS dependency or credentials are required.
 
 The [official v1.7 specification](https://opendata.mtr.com.hk/doc/Next_Train_API_Spec_v1.7.pdf) is the source for line/station codes and response semantics. Data © MTR Corporation Limited. This is an independent project, not an official MTR product. Typeface files are loaded from Google Fonts, with system font fallbacks.
 
 ## Deployment
 
-`dist/` is a self-contained static website with relative asset paths, suitable for GitHub Pages or another static host. The included GitHub Actions workflow tests and builds every push/PR. To publish, enable Pages with GitHub Actions as its source, then run the deployment workflow manually. Pages availability for private repositories depends on your GitHub plan. No secrets are required.
+This app now needs a **long-running Node 22+ server**. GitHub Pages alone cannot run the shared cache, so its deployment workflow has been removed. CI still runs tests and a frontend build on every push/PR.
+
+Deploy **one process / one replica**, with no cluster workers or automatic horizontal scaling. That process serves both the frontend and the shared cache. Multiple processes would create separate caches and multiply MTR calls; a distributed cache and elected poller would be required before scaling horizontally. This configuration reduces upstream load, but is not a claim of unlimited HTTP serving capacity.
+
+The included Docker image is ready for a container host:
+
+```sh
+docker build -t mtr-live .
+docker run --restart unless-stopped -p 8080:8080 mtr-live
+```
+
+Or build with `npm run build`, set `NODE_ENV=production`, `HOST=0.0.0.0`, and `PORT` to your host's assigned port, then run `npm start`. Serve it behind an HTTPS reverse proxy or a hosting platform with managed HTTPS (also required for device location outside localhost). Keep a single always-on instance; sleeping or request-scoped serverless functions will not maintain the 12-second scheduler.
+
+`GET /healthz` reports process health and cache warmup coverage; it remains healthy during upstream outages. `GET /api/network` returns only cached normalized boards and backoff metadata. Neither endpoint can select an upstream URL or trigger a refresh. Only application assets are publicly served; server files, tests and local configuration are excluded. The server supports graceful shutdown. No new public deployment has been created by adding this configuration.
 
 ## Source map
 
@@ -61,6 +76,8 @@ The [official v1.7 specification](https://opendata.mtr.com.hk/doc/Next_Train_API
 - `src/geography.js`: map projection and distance-based geographic route interpolation.
 - `src/data/geography.js`: bundled station, route and coastline geometry; see `DATA_SOURCES.md`.
 - `src/live.js`: API polling, parsing, freshness and position inference.
+- `server/cache.mjs`: shared upstream scheduler, in-memory cache and rate-limit handling.
+- `server/http.mjs`: read-only cache API, compression, ETags and public asset serving.
 - `src/motion.js`: continuous velocity, prediction matching, estimated dwell and arrival events.
 - `src/app.js`: SVG rendering, search, filters, arrivals and camera controls.
 - `src/style.css`: responsive visual design.

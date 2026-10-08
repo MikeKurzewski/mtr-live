@@ -26,25 +26,28 @@ export function estimates(boards, now = Date.now()) {
   return result;
 }
 export class LiveNetwork {
-  boards = new Map(); busy = false; lastCycle = 0; backoff = 0;
-  constructor(onChange, fetcher = (...args) => globalThis.fetch(...args)) { this.onChange = onChange; this.fetcher = fetcher; }
-  async refresh(priority = 'ADM') {
-    if(this.busy || Date.now() < this.backoff) return;
-    this.busy = true;
-    const jobs = lines.flatMap(line => line.stations.map(station => ({ line: line.id, station }))).sort((a,b) => Number(b.station === priority)-Number(a.station === priority));
-    const worker = async () => {
-      while(jobs.length && Date.now() >= this.backoff) {
-        const {line, station} = jobs.shift(), key = `${line}-${station}`;
-        try {
-          const response = await this.fetcher(`${API}?line=${line}&sta=${station}&lang=EN`, { signal: AbortSignal.timeout(12_000), cache: 'no-store' });
-          if(response.status === 429) { this.backoff = Date.now() + 60_000; throw new Error('Rate limited; retrying in one minute'); }
-          if(!response.ok) throw new Error(`Arrival service returned ${response.status}`);
-          this.boards.set(key, normalize(await response.json(), line, station));
-        } catch(error) { this.boards.set(key, { ...this.boards.get(key), line, station, error: error.message, received: Date.now(), rows: this.boards.get(key)?.rows ?? [] }); }
-        this.onChange(this);
+  boards=new Map();busy=false;lastCycle=0;backoff=0;etag=null;error=null;serverBackoff=0;warming=true;
+  constructor(onChange,fetcher=(...args)=>globalThis.fetch(...args)){this.onChange=onChange;this.fetcher=fetcher;}
+  async refresh(){
+    if(this.busy)return;
+    this.busy=true;
+    try{
+      const response=await this.fetcher('/api/network',{signal:AbortSignal.timeout(10000),cache:'no-store',headers:this.etag?{'If-None-Match':this.etag}:{}});
+      if(response.status!==304){
+        if(!response.ok)throw Error(`Shared cache returned HTTP ${response.status}`);
+        const snapshot=await response.json();
+        if(!Array.isArray(snapshot.boards)||snapshot.refreshMs!==12000)throw Error('Invalid shared cache response');
+        const next=new Map();
+        for(const board of snapshot.boards){
+          if(!lines.some(l=>l.id===board.line&&l.stations.includes(board.station))||!Array.isArray(board.rows))throw Error('Invalid station board');
+          const key=`${board.line}-${board.station}`,previous=this.boards.get(key);
+          next.set(key,previous&&previous.received===board.received&&previous.error===board.error?previous:board);
+        }
+        this.boards=next;this.warming=next.size<snapshot.total;this.serverBackoff=snapshot.backoffUntil||0;
+        this.etag=response.headers?.get('etag')||null;
       }
-    };
-    try { await Promise.all(Array.from({length: 6}, worker)); }
-    finally { this.busy = false; this.lastCycle = Date.now(); this.onChange(this); }
+      this.error=null;
+    }catch(error){this.error='Shared cache is unreachable. Retaining recent arrivals until they expire.';}
+    finally{this.busy=false;this.lastCycle=Date.now();this.onChange(this);}
   }
 }

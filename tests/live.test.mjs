@@ -12,4 +12,13 @@ test('Positions advance towards an arrival and disappear after it',()=>{const bo
 test('Stale, invalid, errored, future-clock, or suspended feeds never animate',()=>{const board=normalize(payload(),'ISL','ADM',now);assert.equal(isFresh(board,now+91000),false);assert.equal(isFresh({...board,stamp:now+120000},now),false);for(const b of [{...board,error:'offline'},normalize(payload({status:0}),'ISL','ADM',now),normalize(payload({data:{}}),'ISL','ADM',now)])assert.equal(estimates(new Map([['x',b]]),now).length,0);});
 test('Invalid predictions are filtered without hiding a valid board',()=>{const p=payload();p.data['ISL-ADM'].UP[0].valid='N';const b=normalize(p,'ISL','ADM',now);assert.equal(b.ok,true);assert.equal(b.rows.length,0);});
 test('Empty overnight boards are preserved without imaginary trains',()=>{const p=payload();p.data['ISL-ADM'].UP=[];const b=normalize(p,'ISL','ADM',now);assert.equal(estimates(new Map([['x',b]]),now).length,0);});
-test('Rate limiting stops the queue and establishes retry backoff',async()=>{let calls=0;const client=new LiveNetwork(()=>{},async()=>{calls++;return {status:429,ok:false};});await client.refresh();assert.ok(calls<=6);assert.ok(client.backoff>Date.now());assert.equal(client.busy,false);await client.refresh();assert.ok(calls<=6);});
+test('Browser fetches one shared snapshot and preserves unchanged board identity',async()=>{
+  let calls=0;const board=normalize(payload(),'ISL','ADM',now);
+  const client=new LiveNetwork(()=>{},async url=>{assert.equal(url,'/api/network');calls++;return {ok:true,status:200,json:async()=>({refreshMs:12000,total:1,boards:[structuredClone(board)]})};});
+  await client.refresh();const first=client.boards.get('ISL-ADM');await client.refresh();assert.equal(client.boards.get('ISL-ADM'),first);assert.equal(calls,2);
+});
+test('Cache failures retain timestamped data and never fall back to MTR',async()=>{
+  const client=new LiveNetwork(()=>{},async url=>{assert.equal(url,'/api/network');throw Error('offline');});
+  const board=normalize(payload(),'ISL','ADM',now);client.boards.set('ISL-ADM',board);await client.refresh();
+  assert.equal(client.boards.get('ISL-ADM'),board);assert.ok(client.error);assert.equal(isFresh(board,now+91000),false);
+});

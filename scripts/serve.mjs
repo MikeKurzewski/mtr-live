@@ -1,14 +1,10 @@
-import http from 'node:http';
-import { readFile } from 'node:fs/promises';
-import { resolve, extname, sep } from 'node:path';
-const root = resolve('.');
-const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' };
-http.createServer(async (req, res) => {
-  try {
-    const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
-    const file = resolve(root, '.' + (pathname === '/' ? '/index.html' : pathname));
-    if (!file.startsWith(root + sep) || !types[extname(file)] || pathname.split('/').some(s => s.startsWith('.'))) { res.writeHead(403).end(); return; }
-    const body = await readFile(file);
-    res.writeHead(200, { 'Content-Type': types[extname(file)], 'Cache-Control': 'no-store' }).end(body);
-  } catch { res.writeHead(404).end('Not found'); }
-}).listen(5173, '127.0.0.1', () => console.log('MTR Live: http://127.0.0.1:5173'));
+import { resolve } from 'node:path';
+import { SharedCache } from '../server/cache.mjs';
+import { createAppServer } from '../server/http.mjs';
+const production=process.env.NODE_ENV==='production';
+const port=Number(process.env.PORT||5173),host=process.env.HOST||(production?'0.0.0.0':'127.0.0.1');
+const cache=new SharedCache().start();
+const server=createAppServer(cache,{root:resolve(production?'dist':'.')});
+server.listen(port,host,()=>console.log(`MTR Live: http://${host}:${port} - shared cache: 12s per feed`));
+server.on('error',error=>{cache.stop();console.error(error.message);process.exitCode=1;});
+for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>{cache.stop();server.close(()=>process.exit(0));server.closeIdleConnections();setTimeout(()=>process.exit(0),10000).unref();});
