@@ -4,3 +4,4 @@ output/
 .env*
 .playwright-cli/
 .DS_Store
+.vercel/

@@ -1,0 +1,12 @@
+import './build.mjs';
+import {mkdir,cp,writeFile} from 'node:fs/promises';
+const root=new URL('../.vercel/output/',import.meta.url);
+const fn=new URL('functions/api/network.func/',root);
+await mkdir(fn,{recursive:true});
+await cp(new URL('../dist/',import.meta.url),new URL('static/',root),{recursive:true});
+for(const path of ['src','server','node_modules'])await cp(new URL(`../${path}/`,import.meta.url),new URL(`${path}/`,fn),{recursive:true});
+await writeFile(new URL('package.json',fn),JSON.stringify({type:'module'}));
+await writeFile(new URL('.vc-config.json',fn),JSON.stringify({runtime:'nodejs22.x',handler:'server/vercel-handler.mjs',launcherType:'Nodejs',maxDuration:60,regions:['hkg1']}));
+await writeFile(new URL('functions/api/network.prerender-config.json',root),JSON.stringify({expiration:12,allowQuery:[]}));
+await writeFile(new URL('config.json',root),JSON.stringify({version:3,routes:[{src:'/api/network',dest:'/api/network'},{handle:'filesystem'}]}));
+console.log('Built Vercel frontend and shared ISR arrival endpoint.');

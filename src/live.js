@@ -32,7 +32,7 @@ export class LiveNetwork {
     if(this.busy)return;
     this.busy=true;
     try{
-      const response=await this.fetcher('/api/network',{signal:AbortSignal.timeout(10000),cache:'no-store',headers:this.etag?{'If-None-Match':this.etag}:{}});
+      const response=await this.fetcher('/api/network',{signal:AbortSignal.timeout(55000),cache:'no-store',headers:this.etag?{'If-None-Match':this.etag}:{}});
       if(response.status!==304){
         if(!response.ok)throw Error(`Shared cache returned HTTP ${response.status}`);
         const snapshot=await response.json();

@@ -1,6 +1,6 @@
 # MTR Live
 
-**Hong Kong in motion.** A single-page, geographic MTR map with live arrival boards and animated **estimated** train positions. Built with native JavaScript, SVG and CSS; no runtime dependencies or API keys.
+**Hong Kong in motion.** A single-page, geographic MTR map with live arrival boards and animated **estimated** train positions. Built with native JavaScript, SVG and CSS. The Vercel backend uses the Vercel Runtime Cache SDK; no MTR API key is needed.
 
 ## Run locally
 
@@ -53,9 +53,21 @@ Endpoint: `https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php?line=ISL&sta=
 
 The [official v1.7 specification](https://opendata.mtr.com.hk/doc/Next_Train_API_Spec_v1.7.pdf) is the source for line/station codes and response semantics. Data © MTR Corporation Limited. This is an independent project, not an official MTR product. Typeface files are loaded from Google Fonts, with system font fallbacks.
 
-## Deployment
+## Vercel deployment
 
-This app now needs a **long-running Node 22+ server**. GitHub Pages alone cannot run the shared cache, so its deployment workflow has been removed. CI still runs tests and a frontend build on every push/PR.
+Import this repository with production branch `main`. `vercel.json` sets the install/build configuration; no environment variables are required. Each push to `main` deploys automatically through the Vercel GitHub integration. Run `npm ci` and `node scripts/build-vercel.mjs` to build the Vercel output locally.
+
+The Vercel deployment serves static assets plus `/api/network` as an ISR function in Hong Kong (`hkg1`). Its response is shared through Vercel's cache with a **12-second revalidation window**. Revalidation is demand-driven: after expiry, a visitor triggers a bounded refresh while cached content remains available. Refresh duration, traffic timing and propagation extend the observed interval. It is not an always-on 12-second poller.
+
+The function shares normalized snapshots and rate-limit backoff through Vercel Runtime Cache. Refreshes have six workers, eight-second upstream timeouts, and a 40-second work budget (in-flight requests may finish for up to eight additional seconds). Browser cold-start requests allow 55 seconds. Store failures return 503 instead of falling back to per-visitor upstream calls. Original MTR timestamps still expire after 90 seconds, including when ISR serves stale content.
+
+ISR collapses concurrent requests within a region; an in-process promise also deduplicates simultaneous refreshes. Runtime Cache is regional and ephemeral, not an atomic global lock. Cold misses in separate instances/edge regions or separate deployments can still duplicate a refresh. This substantially reduces API load, but does not guarantee a single worldwide poller or a strict 605 calls/minute ceiling. A durable distributed lock is required for that guarantee. Preview deployments have separate cache state. Query strings are excluded from the ISR cache key.
+
+References: [Vercel ISR request collapsing](https://vercel.com/docs/incremental-static-regeneration/request-collapsing), [Runtime Cache](https://vercel.com/docs/caching/runtime-cache).
+
+## Standalone Node deployment
+
+The alternative standalone deployment uses a **long-running Node 22+ server** and the continuous polling behaviour described in Data integration above. GitHub Pages alone cannot run the shared cache. CI runs tests and both builds on every push/PR.
 
 Deploy **one process / one replica**, with no cluster workers or automatic horizontal scaling. That process serves both the frontend and the shared cache. Multiple processes would create separate caches and multiply MTR calls; a distributed cache and elected poller would be required before scaling horizontally. This configuration reduces upstream load, but is not a claim of unlimited HTTP serving capacity.
 
