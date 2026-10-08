@@ -1,6 +1,6 @@
 # MTR Live
 
-**Hong Kong in motion.** A single-page, interactive MTR schematic with live arrival boards and animated **estimated** train positions. Built with native JavaScript, SVG and CSS; no runtime dependencies or API keys.
+**Hong Kong in motion.** A single-page, geographic MTR map with live arrival boards and animated **estimated** train positions. Built with native JavaScript, SVG and CSS; no runtime dependencies or API keys.
 
 ## Run locally
 
@@ -20,7 +20,7 @@ npm run build # Produces dist/ for any static web host
 ## Features
 
 - All 10 supported heavy-rail lines, with bilingual station names and line index.
-- Zoomable, draggable original SVG schematic; searchable stations and line isolation.
+- Zoomable, draggable geographic SVG map with a faded coastline; searchable stations and line isolation. Trains follow curved railway alignments.
 - Smooth arrival-based motion, larger markers with rear direction arrows, subtle station arrival pulses, amber delay outlines and pause control.
 - Station boards with destinations, platforms, countdowns and delay notices.
 - Live Hong Kong clock, freshness reporting, partial-data and offline handling.
@@ -31,7 +31,7 @@ npm run build # Produces dist/ for any static web host
 
 The [MTR Next Train API](https://data.gov.hk/en-data/dataset/mtr-data2-nexttrain-data) reports up to four upcoming arrivals per direction at each supported station. It does **not** publish GPS positions, unique train identities, or a complete fleet list. This application cannot track every physical train continuously.
 
-Moving markers are separate **approach estimates**, inferred from imminent upcoming arrivals and approximate segment travel times. They are not globally deduplicated train identities or an operational train count. Nearby predictions are matched heuristically within the same approach; revised ETAs adjust velocity smoothly from the current position without rewinding. Unmatched predictions fade out and new ones fade in. At an estimated arrival, a subtle station ring appears and the marker dwells for six seconds before fading. Stops and dwell times are illustrative, not confirmed platform events. Amber dashed outlines reflect the station feed's delay flag, not a per-train delay measurement. Ambiguous branch approaches, including the Racecourse alternative, are omitted. Some long inter-station travel times are explicitly approximated; the others use schematic distance, so animation is illustrative rather than navigation-grade. Static rail lines are schematic, not geographic.
+Moving markers are separate **approach estimates**, inferred from imminent upcoming arrivals and approximate segment travel times. They are not globally deduplicated train identities or an operational train count. Nearby predictions are matched heuristically within the same approach; revised ETAs adjust velocity smoothly from the current position without rewinding. Unmatched predictions fade out and new ones fade in. At an estimated arrival, a subtle station ring appears and the marker dwells for six seconds before fading. Stops and dwell times are illustrative, not confirmed platform events. Amber dashed outlines reflect the station feed's delay flag, not a per-train delay measurement. Ambiguous branch approaches, including the Racecourse alternative, are omitted. The original approximate segment travel times are retained; animation follows the geographic curves by distance but is not navigation-grade. Static routes use community geographic data; the faint coastline is generalized. See [data sources and licenses](DATA_SOURCES.md).
 
 The actual arrival board remains the authoritative part of the UI. Verify journeys and service notices with MTR.
 
@@ -54,7 +54,9 @@ The [official v1.7 specification](https://opendata.mtr.com.hk/doc/Next_Train_API
 
 ## Source map
 
-- `src/network.js`: station catalogue, schematic coordinates and topology.
+- `src/network.js`: station catalogue, topology and approximate segment timing.
+- `src/geography.js`: map projection and distance-based geographic route interpolation.
+- `src/data/geography.js`: bundled station, route and coastline geometry; see `DATA_SOURCES.md`.
 - `src/live.js`: API polling, parsing, freshness and position inference.
 - `src/motion.js`: continuous velocity, prediction matching, estimated dwell and arrival events.
 - `src/app.js`: SVG rendering, search, filters, arrivals and camera controls.

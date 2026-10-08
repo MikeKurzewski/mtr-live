@@ -1,4 +1,5 @@
-// Original schematic coordinates; station codes follow MTR Next Train API v1.7.
+import { geographicStations } from './geography.js';
+// Retain schematic distances only for the existing illustrative travel-time model.
 const raw = `
 KET|Kennedy Town|堅尼地城|400|900
 HKU|HKU|香港大學|445|900
@@ -98,7 +99,7 @@ OCP|Ocean Park|海洋公園|760|975
 WCH|Wong Chuk Hang|黃竹坑|695|1030
 LET|Lei Tung|利東|610|1030
 SOH|South Horizons|海怡半島|530|1030`;
-export const stations = Object.fromEntries(raw.trim().split('\n').map(row => { const [id, name, zh, x, y] = row.split('|'); return [id, { id, name, zh, x: +x, y: +y }]; }));
+export const stations = Object.fromEntries(raw.trim().split('\n').map(row => { const [id, name, zh, x, y] = row.split('|'); return [id, { id, name, zh, schematicX:+x,schematicY:+y,...geographicStations[id] }]; }));
 const line = (id, name, zh, color, routes) => ({ id, name, zh, color, routes: routes.map(r => r.split(' ')), stations: [...new Set(routes.join(' ').split(' '))] });
 export const lines = [
   line('TWL','Tsuen Wan Line','荃灣綫','#f4555e',['CEN ADM TST JOR YMT MOK PRE SSP CSW LCK MEF LAK KWF KWH TWH TSW']),
@@ -138,5 +139,5 @@ export function incomingStation(lineId, station, destination) {
 }
 export function segmentSeconds(lineId, a, b) {
   const special = { 'AIR-TSY': 780, 'KOW-TSY': 600, 'HOK-KOW': 180, 'SUN-TSY': 360, 'SUN-TUC': 390, 'KSR-TWW': 360, 'HUH-MKK': 240, 'DIH-HIK': 240 };
-  return special[[a,b].sort().join('-')] ?? Math.max(90, Math.min(240, Math.hypot(stations[a].x-stations[b].x, stations[a].y-stations[b].y) * 1.5));
+  return special[[a,b].sort().join('-')] ?? Math.max(90, Math.min(240, Math.hypot(stations[a].schematicX-stations[b].schematicX, stations[a].schematicY-stations[b].schematicY) * 1.5));
 }

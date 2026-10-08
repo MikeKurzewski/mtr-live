@@ -11,3 +11,10 @@
 .legend-delay{width:14px;height:8px;border:2px dashed #ffc66d;border-radius:3px}
 @media(prefers-reduced-motion:reduce){.station-pulse{display:none}}
 .bottom-bar>span{flex-wrap:wrap;row-gap:9px}
+.geographic-basemap{pointer-events:none}
+.coastline{fill:#42565b;fill-opacity:.32;stroke:#77949a;stroke-opacity:.24;stroke-width:1;vector-effect:non-scaling-stroke}
+.geographic-basemap .region-label{font-size:16px;letter-spacing:4px;fill:#7e9a9f;opacity:.45}
+.geographic-basemap .water-label{font-size:13px;letter-spacing:3px;fill:#789aa5;opacity:.4}
+.station:hover text,.station:focus-visible text{visibility:visible!important}
+.map-source{position:absolute;left:20px;bottom:40px;font-size:9px;color:#80989c;background:#121b2090;padding:3px 5px;border-radius:3px}
+@media(max-width:720px){.map-source{left:12px;bottom:64px;font-size:8px}}
