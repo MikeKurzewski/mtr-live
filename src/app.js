@@ -3,6 +3,7 @@ import { LiveNetwork, isFresh } from './live.js';
 import { TrainMotion } from './motion.js';
 import { coastPaths, project, segmentGeometry, pointAlong } from './geography.js';
 import { nearestStation, locationDescription, locationError } from './location.js';
+import { attachMapGestures } from './gestures.js';
 const $ = id => document.getElementById(id);
 const ns = 'http://www.w3.org/2000/svg';
 function svg(tag, attrs = {}, parent) { const el = document.createElementNS(ns, tag); for(const [k,v] of Object.entries(attrs)) el.setAttribute(k,v); if(parent) parent.append(el); return el; }
@@ -177,10 +178,7 @@ $('network').addEventListener('wheel',e=>{
   e.preventDefault();const p=$('network').createSVGPoint();p.x=e.clientX;p.y=e.clientY;
   zoom(e.deltaY>0?1.12:.89,p.matrixTransform($('network').getScreenCTM().inverse()));
 },{passive:false});
-let drag=null;
-$('network').addEventListener('pointerdown',e=>{if(e.button!==0)return;drag={id:e.pointerId,x:e.clientX,y:e.clientY,v:{...view}};dragged=false;});
-$('network').addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(dx,dy)>4){dragged=true;$('network').setPointerCapture(e.pointerId);}if(!dragged)return;const bounds=$('network').getBoundingClientRect(),scale=Math.min(bounds.width/drag.v.w,bounds.height/drag.v.h);view.x=drag.v.x-dx/scale;view.y=drag.v.y-dy/scale;applyView();});
-for(const event of ['pointerup','pointercancel']) $('network').addEventListener(event,()=>{drag=null;setTimeout(()=>{dragged=false;},0);});
+attachMapGestures($('network'),()=>view,next=>{view=next;applyView();},value=>{dragged=value;});
 $('search').addEventListener('input',()=>{
   const query=$('search').value.trim().toLowerCase(),results=$('search-results');results.replaceChildren();results.hidden=!query;if(!query)return;
   const found=Object.values(stations).filter(s=>`${s.id} ${s.name} ${s.zh}`.toLowerCase().includes(query)).slice(0,8);
