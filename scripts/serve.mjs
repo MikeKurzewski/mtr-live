@@ -5,6 +5,6 @@ const production=process.env.NODE_ENV==='production';
 const port=Number(process.env.PORT||5173),host=process.env.HOST||(production?'0.0.0.0':'127.0.0.1');
 const cache=new SharedCache().start();
 const server=createAppServer(cache,{root:resolve(production?'dist':'.')});
-server.listen(port,host,()=>console.log(`MTR Live: http://${host}:${port} - shared cache: 12s per feed`));
+server.listen(port,host,()=>console.log(`MTR Live: http://${host}:${port} - shared cache: 30s per feed`));
 server.on('error',error=>{cache.stop();console.error(error.message);process.exitCode=1;});
 for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>{cache.stop();server.close(()=>process.exit(0));server.closeIdleConnections();setTimeout(()=>process.exit(0),10000).unref();});

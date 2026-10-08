@@ -1,6 +1,6 @@
 import { lines } from '../src/network.js';
 import { API, normalize } from '../src/live.js';
-export const REFRESH_MS=12_000;
+export const REFRESH_MS=30_000;
 export const FEEDS=lines.flatMap(line=>line.stations.map(station=>({line:line.id,station})));
 export function retryDelay(value,now){
   if(!value)return 60_000;

@@ -36,7 +36,7 @@ export class LiveNetwork {
       if(response.status!==304){
         if(!response.ok)throw Error(`Shared cache returned HTTP ${response.status}`);
         const snapshot=await response.json();
-        if(!Array.isArray(snapshot.boards)||snapshot.refreshMs!==12000)throw Error('Invalid shared cache response');
+        if(!Array.isArray(snapshot.boards)||![12000,30000].includes(snapshot.refreshMs))throw Error('Invalid shared cache response');
         const next=new Map();
         for(const board of snapshot.boards){
           if(!lines.some(l=>l.id===board.line&&l.stations.includes(board.station))||!Array.isArray(board.rows))throw Error('Invalid station board');

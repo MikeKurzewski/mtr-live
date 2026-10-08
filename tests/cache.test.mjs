@@ -5,13 +5,13 @@ import { createAppServer } from '../server/http.mjs';
 const feeds=[{line:'ISL',station:'ADM'},{line:'ISL',station:'CEN'}];
 const success=async()=>({status:200,ok:true,json:async()=>({status:1,data:{}})});
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
-test('Feeds are staggered and each is fetched no more often than every 12 seconds',async()=>{
+test('Feeds are staggered and each is fetched no more often than every 30 seconds',async()=>{
   let now=0;const cache=new SharedCache({clock:()=>now,feeds,fetcher:success});
   cache.tick();await flush();assert.equal(cache.requests,1);
-  now=5999;cache.tick();assert.equal(cache.requests,1);
-  now=6000;cache.tick();await flush();assert.equal(cache.requests,2);
-  now=11999;cache.tick();assert.equal(cache.requests,2);
-  now=12000;cache.tick();await flush();assert.equal(cache.requests,3);cache.stop();
+  now=14999;cache.tick();assert.equal(cache.requests,1);
+  now=15000;cache.tick();await flush();assert.equal(cache.requests,2);
+  now=29999;cache.tick();assert.equal(cache.requests,2);
+  now=30000;cache.tick();await flush();assert.equal(cache.requests,3);cache.stop();
 });
 test('Slow upstream requests cannot overlap for the same station and concurrency is bounded',async()=>{
   let now=0,release;const gate=new Promise(r=>release=r);
@@ -36,7 +36,7 @@ test('Many HTTP readers share one cache, support ETags, and cannot trigger upstr
   try{
     const results=await Promise.all(Array.from({length:40},()=>fetch(url+'/api/network')));
     assert.ok(results.every(r=>r.ok));assert.equal(cache.requests,0);
-    const first=results[0],etag=first.headers.get('etag');assert.equal(first.headers.get('content-encoding'),'gzip');assert.equal((await first.json()).refreshMs,12000);
+    const first=results[0],etag=first.headers.get('etag');assert.equal(first.headers.get('content-encoding'),'gzip');assert.equal((await first.json()).refreshMs,30000);
     assert.equal((await fetch(url+'/api/network',{headers:{'If-None-Match':etag}})).status,304);
     assert.equal((await fetch(url+'/server/cache.mjs')).status,404);
     assert.equal((await fetch(url+'/api/network',{method:'POST'})).status,405);

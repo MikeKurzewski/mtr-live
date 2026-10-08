@@ -97,7 +97,7 @@ function renderStatus() {
   const boards=[...network.boards.values()], fresh=boards.filter(b=>isFresh(b)),total=lines.reduce((n,l)=>n+l.stations.length,0);
   $('connection').classList.toggle('offline',fresh.length===0&&!network.busy);
   $('connection-label').textContent=network.busy&&!boards.length?'Connecting':fresh.length===total?'Live feed':fresh.length?'Partial live feed':network.busy?'Connecting':'Feed unavailable';
-  $('coverage').textContent=`${fresh.length} / ${total} station feeds · 12s shared refresh`;
+  $('coverage').textContent=`${fresh.length} / ${total} station feeds · 30s shared refresh`;
   const failed=boards.filter(b=>!isFresh(b)).length;
   $('notice').hidden=network.busy||(!failed&&fresh.length>0);
   $('notice').textContent=fresh.length===0?'Live arrivals are unavailable right now. The network map remains available; train estimates will return automatically when fresh data resumes.':`${failed} station feeds are unavailable or stale. Only fresh arrival data appears on the moving map.`;

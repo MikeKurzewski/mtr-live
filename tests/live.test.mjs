@@ -14,7 +14,7 @@ test('Invalid predictions are filtered without hiding a valid board',()=>{const 
 test('Empty overnight boards are preserved without imaginary trains',()=>{const p=payload();p.data['ISL-ADM'].UP=[];const b=normalize(p,'ISL','ADM',now);assert.equal(estimates(new Map([['x',b]]),now).length,0);});
 test('Browser fetches one shared snapshot and preserves unchanged board identity',async()=>{
   let calls=0;const board=normalize(payload(),'ISL','ADM',now);
-  const client=new LiveNetwork(()=>{},async url=>{assert.equal(url,'/api/network');calls++;return {ok:true,status:200,json:async()=>({refreshMs:12000,total:1,boards:[structuredClone(board)]})};});
+  const client=new LiveNetwork(()=>{},async url=>{assert.equal(url,'/api/network');calls++;return {ok:true,status:200,json:async()=>({refreshMs:30000,total:1,boards:[structuredClone(board)]})};});
   await client.refresh();const first=client.boards.get('ISL-ADM');await client.refresh();assert.equal(client.boards.get('ISL-ADM'),first);assert.equal(calls,2);
 });
 test('Cache failures retain timestamped data and never fall back to MTR',async()=>{

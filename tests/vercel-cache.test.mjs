@@ -11,7 +11,8 @@ test('concurrent readers share a refresh and new instances reuse stored snapshot
   const results=await Promise.all(Array.from({length:50},()=>read()));
   assert.equal(calls,2);assert.ok(results.every(r=>r===results[0]));
   await createSnapshotReader(store,options)();assert.equal(calls,2);
-  now+=12001;await read();assert.equal(calls,4);
+  now+=12001;await read();assert.equal(calls,2);
+  now+=18000;await read();assert.equal(calls,4);
 });
 test('429 backoff survives instance replacement and prevents further upstream work',async()=>{
   let calls=0;
