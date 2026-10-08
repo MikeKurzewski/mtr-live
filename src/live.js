@@ -20,7 +20,7 @@ export function estimates(boards, now = Date.now()) {
       if(!from) continue;
       const duration = segmentSeconds(board.line, from, board.station), remaining = (row.arrival-now)/1000;
       if(remaining > duration) continue;
-      result.push({ ...row, key: `${board.line}-${board.station}-${direction}`, line: board.line, from, to: board.station, progress: 1-remaining/duration });
+      result.push({ ...row, key: `${board.line}-${board.station}-${direction}`, line: board.line, from, to: board.station, duration, delay: board.delay, progress: 1-remaining/duration });
     }
   }
   return result;

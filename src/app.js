@@ -1,11 +1,13 @@
 import { stations, lines, byLine, stationLines, majorStations } from './network.js';
-import { LiveNetwork, estimates, isFresh } from './live.js';
+import { LiveNetwork, isFresh } from './live.js';
+import { TrainMotion } from './motion.js';
 const $ = id => document.getElementById(id);
 const ns = 'http://www.w3.org/2000/svg';
 function svg(tag, attrs = {}, parent) { const el = document.createElementNS(ns, tag); for(const [k,v] of Object.entries(attrs)) el.setAttribute(k,v); if(parent) parent.append(el); return el; }
 function text(tag, content, className, parent) { const el = document.createElement(tag); el.textContent = content; if(className) el.className=className; if(parent) parent.append(el); return el; }
 let selectedLine = null, selectedStation = 'ADM', paused = matchMedia('(prefers-reduced-motion: reduce)').matches;
-let view = { x:0,y:0,w:1540,h:1100 }, dragged = false, frozen = [], lastRender = 0, initialFreeze = paused;
+let view = { x:0,y:0,w:1540,h:1100 }, dragged = false, lastRender = 0;
+const motion = new TrainMotion();
 const root = $('map-content'), lineGroups = new Map(), markerElements = new Map(), edgeOffsets = new Map();
 const sea = svg('path', { d:'M0 805 Q240 785 350 810 T570 815 Q670 835 780 810 T1120 805 L1540 860 L1540 1100 L0 1100Z',fill:'#14272f',opacity:'.75'}, root);
 svg('path',{d:'M0 805 Q240 785 350 810 T570 815 Q670 835 780 810 T1120 805 L1540 860',stroke:'#24414b','stroke-width':1.5,fill:'none'},root);
@@ -24,6 +26,7 @@ for(const line of lines) {
 }
 // Walking interchanges are not rail segments.
 for(const [a,b] of [['CEN','HOK'],['TST','ETS']]) svg('path',{d:`M${stations[a].x} ${stations[a].y}L${stations[b].x} ${stations[b].y}`,stroke:'#748a90','stroke-width':2,'stroke-dasharray':'4 4'},root);
+const pulseGroup=svg('g',{'aria-hidden':'true',class:'station-pulses'},root);
 const stationGroup=svg('g',{},root), trainGroup=svg('g',{'aria-hidden':'true'},root);
 const labelOverrides={ADM:[-12,33,'end'],CEN:[-8,32,'end'],HOK:[-15,5,'end'],KOW:[-16,5,'end'],NAC:[-15,5,'end'],LAK:[-16,-8,'end'],TSY:[-15,5,'end'],SUN:[-15,-14,'end'],TUC:[-15,28,'start'],AIR:[16,5,'start'],AWE:[16,5,'start'],DIS:[16,5,'start'],MEF:[-16,-13,'end'],PRE:[-16,5,'end'],MOK:[-16,5,'end'],YMT:[16,5,'start'],TST:[-16,5,'end'],HOM:[16,-12,'start'],KOT:[-14,-20,'end'],DIH:[12,-18,'start'],HUH:[16,5,'start'],TAW:[-16,5,'end'],SHT:[-16,5,'end'],UNI:[16,5,'start'],SHS:[-15,28,'end'],LOW:[-15,-14,'end'],LMC:[-15,5,'end'],TIK:[0,30,'middle'],TKO:[16,5,'start'],YAT:[-16,30,'end'],NOP:[0,-20,'middle'],QUB:[0,30,'middle'],POA:[16,5,'start'],WKS:[16,5,'start'],MOS:[0,-20,'middle'],TWW:[-16,5,'end'],YUL:[0,-20,'middle'],TIS:[-10,-20,'end'],TUM:[16,5,'start'],OCP:[16,5,'start'],SOH:[-15,5,'end'],CHW:[16,5,'start'],KET:[0,30,'middle']};
 for(const station of Object.values(stations)) {
@@ -92,28 +95,47 @@ function renderStatus() {
   $('notice').textContent=fresh.length===0?'Live arrivals are unavailable right now. The network map remains available; train estimates will return automatically when fresh data resumes.':`${failed} station feeds are unavailable or stale. Only fresh arrival data appears on the moving map.`;
 }
 let lastFrame=0,lastStats=0;
+function pulseStation(stationId, line) {
+  if (paused || (selectedLine && selectedLine !== line)) return;
+  const station = stations[stationId];
+  // One quiet ring even when two arrivals at an interchange coincide.
+  if (pulseGroup.querySelector(`[data-pulse-station="${stationId}"]`)) return;
+  const ring = svg('circle', { cx:station.x, cy:station.y, r:7, class:'station-pulse',
+    stroke:byLine[line].color, 'data-pulse-station':stationId }, pulseGroup);
+  ring.addEventListener('animationend', () => ring.remove(), {once:true});
+}
 function animate(now) {
   requestAnimationFrame(animate);
-  if(document.hidden||now-lastFrame<50) return;
+  if(document.hidden){lastFrame=now;return;}
+  const elapsed=lastFrame?(now-lastFrame)/1000:0;
   lastFrame=now;
-  const current=estimates(network.boards);
-  if(initialFreeze && current.length && !network.busy){frozen=current;initialFreeze=false;}
-  const items=paused?frozen.filter(item=>current.some(c=>c.key===item.key&&c.arrival===item.arrival)):current;
+  const {trains:items,arrivals}=motion.step(network.boards,Date.now(),elapsed,paused);
+  for(const arrival of arrivals) pulseStation(arrival.station,arrival.line);
   const visible=items.filter(e=>!selectedLine||e.line===selectedLine),keys=new Set(visible.map(e=>e.key));
   for(const [key,el] of markerElements) if(!keys.has(key)){el.remove();markerElements.delete(key);}
   for(const item of visible) {
     let el=markerElements.get(item.key);
-    if(!el) { el=svg('g',{class:'train-marker'},trainGroup);svg('rect',{x:-10,y:-4.5,width:20,height:9,rx:4,fill:byLine[item.line].color},el);svg('rect',{x:3,y:-2,width:3,height:4,rx:1,class:'train-light'},el);svg('title',{},el);el.addEventListener('click',()=>selectStation(item.to));markerElements.set(item.key,el); }
+    if(!el) {
+      el=svg('g',{class:'train-marker'},trainGroup);
+      svg('rect',{x:-14,y:-6.5,width:28,height:13,rx:5,fill:byLine[item.line].color,class:'train-body'},el);
+      svg('path',{d:'M-24 0H-17M-20 -3.5L-16.5 0L-20 3.5',class:'train-arrow'},el);
+      svg('rect',{x:7,y:-3,width:3.5,height:6,rx:1.2,class:'train-light'},el);
+      svg('title',{},el);el.addEventListener('click',()=>selectStation(item.to));markerElements.set(item.key,el);
+    }
+    el.classList.toggle('delayed',item.delay);
+    el.classList.toggle('stopped',item.stopped);
+    el.style.opacity=String(item.opacity);
     const a=stations[item.from],b=stations[item.to],offset=edgeOffsets.get(`${item.line}-${[item.from,item.to].sort().join('-')}`)??{x:0,y:0};
     const x=a.x+(b.x-a.x)*item.progress+offset.x,y=a.y+(b.y-a.y)*item.progress+offset.y,angle=Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI;
     el.setAttribute('transform',`translate(${x} ${y}) rotate(${angle})`);
-    el.querySelector('title').textContent=`${byLine[item.line].name} → ${stations[item.dest]?.name??item.dest}; approaching ${b.name} (estimated)`;
+    el.querySelector('title').textContent=`${byLine[item.line].name} → ${stations[item.dest]?.name??item.dest}; ${item.stopped?'at':'approaching'} ${b.name} (estimated)${item.delay?' · MTR reports a delay on this feed':''}`;
   }
   $('train-count').textContent=String(visible.length);
   if(now-lastStats>5000){renderStatus();renderArrivals();lastStats=now;}
 }
 $('pause').setAttribute('aria-pressed',String(paused));$('pause').setAttribute('aria-label',paused?'Resume train animation':'Pause train animation');$('pause').textContent=paused?'▷':'Ⅱ';
-$('pause').addEventListener('click',()=>{paused=!paused;initialFreeze=false;frozen=estimates(network.boards);$('pause').setAttribute('aria-pressed',String(paused));$('pause').setAttribute('aria-label',paused?'Resume train animation':'Pause train animation');$('pause').textContent=paused?'▷':'Ⅱ';});
+root.classList.toggle('motion-paused',paused);
+$('pause').addEventListener('click',()=>{paused=!paused;root.classList.toggle('motion-paused',paused);$('pause').setAttribute('aria-pressed',String(paused));$('pause').setAttribute('aria-label',paused?'Resume train animation':'Pause train animation');$('pause').textContent=paused?'▷':'Ⅱ';});
 function applyView(){ $('network').setAttribute('viewBox',`${view.x} ${view.y} ${view.w} ${view.h}`); }
 function zoom(factor){const w=Math.min(2000,Math.max(400,view.w*factor)),h=w*1100/1540;view={x:view.x+(view.w-w)/2,y:view.y+(view.h-h)/2,w,h};applyView();}
 $('zoom-in').addEventListener('click',()=>zoom(.75));$('zoom-out').addEventListener('click',()=>zoom(1/.75));$('fit').addEventListener('click',()=>{view={x:0,y:0,w:1540,h:1100};applyView();});

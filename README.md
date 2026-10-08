@@ -21,7 +21,7 @@ npm run build # Produces dist/ for any static web host
 
 - All 10 supported heavy-rail lines, with bilingual station names and line index.
 - Zoomable, draggable original SVG schematic; searchable stations and line isolation.
-- Arrival-based moving markers, directional headlights and pause control.
+- Smooth arrival-based motion, larger markers with rear direction arrows, subtle station arrival pulses, amber delay outlines and pause control.
 - Station boards with destinations, platforms, countdowns and delay notices.
 - Live Hong Kong clock, freshness reporting, partial-data and offline handling.
 - Responsive desktop/mobile layouts, keyboard-operable stations and reduced-motion support.
@@ -31,7 +31,7 @@ npm run build # Produces dist/ for any static web host
 
 The [MTR Next Train API](https://data.gov.hk/en-data/dataset/mtr-data2-nexttrain-data) reports up to four upcoming arrivals per direction at each supported station. It does **not** publish GPS positions, unique train identities, or a complete fleet list. This application cannot track every physical train continuously.
 
-Moving markers are separate **approach estimates**, inferred from the nearest upcoming arrival and an approximate segment travel time. They are not globally deduplicated train identities or an operational train count. Each marker advances towards its arrival station and disappears after the predicted arrival time. Timetable changes may move it. Ambiguous branch approaches, including the Racecourse alternative, are omitted. Some long inter-station travel times are explicitly approximated; the others use schematic distance, so animation is illustrative rather than navigation-grade. Static rail lines are schematic, not geographic.
+Moving markers are separate **approach estimates**, inferred from imminent upcoming arrivals and approximate segment travel times. They are not globally deduplicated train identities or an operational train count. Nearby predictions are matched heuristically within the same approach; revised ETAs adjust velocity smoothly from the current position without rewinding. Unmatched predictions fade out and new ones fade in. At an estimated arrival, a subtle station ring appears and the marker dwells for six seconds before fading. Stops and dwell times are illustrative, not confirmed platform events. Amber dashed outlines reflect the station feed's delay flag, not a per-train delay measurement. Ambiguous branch approaches, including the Racecourse alternative, are omitted. Some long inter-station travel times are explicitly approximated; the others use schematic distance, so animation is illustrative rather than navigation-grade. Static rail lines are schematic, not geographic.
 
 The actual arrival board remains the authoritative part of the UI. Verify journeys and service notices with MTR.
 
@@ -56,6 +56,7 @@ The [official v1.7 specification](https://opendata.mtr.com.hk/doc/Next_Train_API
 
 - `src/network.js`: station catalogue, schematic coordinates and topology.
 - `src/live.js`: API polling, parsing, freshness and position inference.
+- `src/motion.js`: continuous velocity, prediction matching, estimated dwell and arrival events.
 - `src/app.js`: SVG rendering, search, filters, arrivals and camera controls.
 - `src/style.css`: responsive visual design.
 - `tests/live.test.mjs`: deterministic core behaviour tests.
