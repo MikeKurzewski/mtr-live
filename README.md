@@ -21,7 +21,7 @@ npm run build # Produces dist/ for any static web host
 
 - All 10 supported heavy-rail lines, with bilingual station names and line index.
 - Zoomable, draggable geographic SVG map with a faded coastline; searchable stations and line isolation. Trains follow curved railway alignments.
-- Smooth arrival-based motion, larger markers with rear direction arrows, subtle station arrival pulses, amber delay outlines and pause control.
+- Smooth arrival-based motion, larger markers with internal direction arrows, subtle station arrival pulses, amber delay outlines and pause control.
 - Station boards with destinations, platforms, countdowns and delay notices.
 - Optional device location selects the nearest station, with straight-line distance and accuracy information. Manual station selection always remains available.
 - Live Hong Kong clock, freshness reporting, partial-data and offline handling.

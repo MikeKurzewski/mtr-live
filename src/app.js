@@ -125,7 +125,7 @@ function animate(now) {
     if(!el) {
       el=svg('g',{class:'train-marker'},trainGroup);
       svg('rect',{x:-14,y:-6.5,width:28,height:13,rx:5,fill:byLine[item.line].color,class:'train-body'},el);
-      svg('path',{d:'M-24 0H-17M-20 -3.5L-16.5 0L-20 3.5',class:'train-arrow'},el);
+      svg('path',{d:'M-9 0H2M-1.5 -3.5L2 0L-1.5 3.5',class:'train-arrow'},el);
       svg('rect',{x:7,y:-3,width:3.5,height:6,rx:1.2,class:'train-light'},el);
       svg('title',{},el);el.addEventListener('click',()=>selectStation(item.to));markerElements.set(item.key,el);
     }
