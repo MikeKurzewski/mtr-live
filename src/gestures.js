@@ -1,6 +1,7 @@
+export const MIN_VIEW_WIDTH=45;
 // SVG uses xMidYMid meet: account for the empty margins on tall phone screens.
 export function gestureView(start, bounds, origin, current, ratio=1) {
-  const w=Math.min(2000,Math.max(180,start.w/ratio)),h=w*1100/1540;
+  const w=Math.min(2000,Math.max(MIN_VIEW_WIDTH,start.w/ratio)),h=w*1100/1540;
   const oldScale=Math.min(bounds.width/start.w,bounds.height/start.h);
   const scale=Math.min(bounds.width/w,bounds.height/h);
   const offset=(point,width,height,s)=>({

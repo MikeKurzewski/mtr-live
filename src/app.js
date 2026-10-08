@@ -3,7 +3,7 @@ import { LiveNetwork, isFresh } from './live.js';
 import { TrainMotion } from './motion.js';
 import { coastPaths, project, segmentGeometry, pointAlong } from './geography.js';
 import { nearestStation, locationDescription, locationError } from './location.js';
-import { attachMapGestures } from './gestures.js';
+import { attachMapGestures, MIN_VIEW_WIDTH } from './gestures.js';
 const $ = id => document.getElementById(id);
 const ns = 'http://www.w3.org/2000/svg';
 function svg(tag, attrs = {}, parent) { const el = document.createElementNS(ns, tag); for(const [k,v] of Object.entries(attrs)) el.setAttribute(k,v); if(parent) parent.append(el); return el; }
@@ -170,7 +170,7 @@ function layoutLabels(){
 }
 function applyView(){ $('network').setAttribute('viewBox',`${view.x} ${view.y} ${view.w} ${view.h}`);layoutLabels(); }
 function zoom(factor,anchor={x:view.x+view.w/2,y:view.y+view.h/2}){
-  const w=Math.min(2000,Math.max(180,view.w*factor)),h=w*1100/1540;
+  const w=Math.min(2000,Math.max(MIN_VIEW_WIDTH,view.w*factor)),h=w*1100/1540;
   view={x:anchor.x-(anchor.x-view.x)*w/view.w,y:anchor.y-(anchor.y-view.y)*h/view.h,w,h};applyView();
 }
 $('zoom-in').addEventListener('click',()=>zoom(.75));$('zoom-out').addEventListener('click',()=>zoom(1/.75));$('fit').addEventListener('click',()=>{view={x:0,y:0,w:1540,h:1100};applyView();});

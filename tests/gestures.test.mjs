@@ -9,7 +9,7 @@ test('pinch doubles zoom around the fingers, including SVG letterboxing',()=>{
   assert.equal(next.w,770);assert.equal(next.x,385);assert.equal(next.y,275);
   const shifted=gestureView(initial,bounds,center,{x:230,y:480},2);
   assert.ok(Math.abs(shifted.x-(385-77))<1e-8);
-  assert.equal(gestureView(initial,bounds,center,center,100).w,180);
+  assert.equal(gestureView(initial,bounds,center,center,100).w,45);
 });
 test('pinch can transition to one-finger panning and cancel cleanly',()=>{
   const events={},captured=new Set();let view={...initial},dragged=false;
