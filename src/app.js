@@ -1,0 +1,137 @@
+import { stations, lines, byLine, stationLines, majorStations } from './network.js';
+import { LiveNetwork, estimates, isFresh } from './live.js';
+const $ = id => document.getElementById(id);
+const ns = 'http://www.w3.org/2000/svg';
+function svg(tag, attrs = {}, parent) { const el = document.createElementNS(ns, tag); for(const [k,v] of Object.entries(attrs)) el.setAttribute(k,v); if(parent) parent.append(el); return el; }
+function text(tag, content, className, parent) { const el = document.createElement(tag); el.textContent = content; if(className) el.className=className; if(parent) parent.append(el); return el; }
+let selectedLine = null, selectedStation = 'ADM', paused = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let view = { x:0,y:0,w:1540,h:1100 }, dragged = false, frozen = [], lastRender = 0, initialFreeze = paused;
+const root = $('map-content'), lineGroups = new Map(), markerElements = new Map(), edgeOffsets = new Map();
+const sea = svg('path', { d:'M0 805 Q240 785 350 810 T570 815 Q670 835 780 810 T1120 805 L1540 860 L1540 1100 L0 1100Z',fill:'#14272f',opacity:'.75'}, root);
+svg('path',{d:'M0 805 Q240 785 350 810 T570 815 Q670 835 780 810 T1120 805 L1540 860',stroke:'#24414b','stroke-width':1.5,fill:'none'},root);
+for(const [label,x,y] of [['NEW TERRITORIES',520,75],['KOWLOON',865,720],['HONG KONG ISLAND',800,1080],['LANTAU ISLAND',65,890]]) svg('text',{x,y,class:'region-label'},root).textContent=label;
+svg('text',{x:920,y:838,class:'water-label'},root).textContent='VICTORIA HARBOUR';
+const shared = new Map();
+for(const line of lines) for(const route of line.routes) for(let i=1;i<route.length;i++) { const key=[route[i-1],route[i]].sort().join('-'); if(!shared.has(key)) shared.set(key,[]); if(!shared.get(key).includes(line.id)) shared.get(key).push(line.id); }
+for(const line of lines) {
+  const group=svg('g',{'data-line':line.id},root); lineGroups.set(line.id,group);
+  for(const route of line.routes) for(let i=1;i<route.length;i++) {
+    const a=stations[route[i-1]],b=stations[route[i]],pair=[a.id,b.id].sort(),key=pair.join('-'),members=shared.get(key),offset=(members.indexOf(line.id)-(members.length-1)/2)*7;
+    const first=stations[pair[0]],second=stations[pair[1]],dx=second.x-first.x,dy=second.y-first.y,len=Math.hypot(dx,dy),ox=-dy/len*offset,oy=dx/len*offset;
+    edgeOffsets.set(`${line.id}-${key}`,{x:ox,y:oy});
+    svg('path',{d:`M${a.x+ox} ${a.y+oy} L${b.x+ox} ${b.y+oy}`,stroke:line.color,'stroke-width':5,fill:'none',class:'line-edge',...(line.id==='EAL' && (a.id==='RAC'||b.id==='RAC') ? {'stroke-dasharray':'7 5'} : {})},group);
+  }
+}
+// Walking interchanges are not rail segments.
+for(const [a,b] of [['CEN','HOK'],['TST','ETS']]) svg('path',{d:`M${stations[a].x} ${stations[a].y}L${stations[b].x} ${stations[b].y}`,stroke:'#748a90','stroke-width':2,'stroke-dasharray':'4 4'},root);
+const stationGroup=svg('g',{},root), trainGroup=svg('g',{'aria-hidden':'true'},root);
+const labelOverrides={ADM:[-12,33,'end'],CEN:[-8,32,'end'],HOK:[-15,5,'end'],KOW:[-16,5,'end'],NAC:[-15,5,'end'],LAK:[-16,-8,'end'],TSY:[-15,5,'end'],SUN:[-15,-14,'end'],TUC:[-15,28,'start'],AIR:[16,5,'start'],AWE:[16,5,'start'],DIS:[16,5,'start'],MEF:[-16,-13,'end'],PRE:[-16,5,'end'],MOK:[-16,5,'end'],YMT:[16,5,'start'],TST:[-16,5,'end'],HOM:[16,-12,'start'],KOT:[-14,-20,'end'],DIH:[12,-18,'start'],HUH:[16,5,'start'],TAW:[-16,5,'end'],SHT:[-16,5,'end'],UNI:[16,5,'start'],SHS:[-15,28,'end'],LOW:[-15,-14,'end'],LMC:[-15,5,'end'],TIK:[0,30,'middle'],TKO:[16,5,'start'],YAT:[-16,30,'end'],NOP:[0,-20,'middle'],QUB:[0,30,'middle'],POA:[16,5,'start'],WKS:[16,5,'start'],MOS:[0,-20,'middle'],TWW:[-16,5,'end'],YUL:[0,-20,'middle'],TIS:[-10,-20,'end'],TUM:[16,5,'start'],OCP:[16,5,'start'],SOH:[-15,5,'end'],CHW:[16,5,'start'],KET:[0,30,'middle']};
+for(const station of Object.values(stations)) {
+  const serving=stationLines(station.id),major=majorStations.has(station.id),g=svg('g',{class:`station ${major?'major':'minor'}`,transform:`translate(${station.x} ${station.y})`,tabindex:0,role:'button','aria-label':`${station.name}, ${station.zh}, show arrivals`,'data-station':station.id},stationGroup);
+  svg('circle',{r:14,fill:'transparent',stroke:'none'},g);
+  svg('circle',{r:serving.length>1?7:3.8,fill:serving.length>1?'#172026':'#d8e3e5',stroke:serving.length>1?'#dce5e7':'#152026','stroke-width':serving.length>1?2.5:1.5},g);
+  const [x,y,anchor]=labelOverrides[station.id]??[10,-10,'start'];
+  svg('text',{x,y,'text-anchor':anchor},g).textContent=station.name;
+  svg('title',{},g).textContent=`${station.name} ${station.zh}`;
+  g.addEventListener('click',()=>{if(!dragged) selectStation(station.id);});
+  g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selectStation(station.id);}});
+}
+for(const line of lines) {
+  const button=text('button','','line-button',$('line-index'));button.style.setProperty('--line',line.color);button.setAttribute('aria-pressed','false');button.dataset.line=line.id;
+  text('span','','line-swatch',button);const copy=text('span',line.name,'line-copy',button);text('small',line.zh,'',copy);text('span',line.id,'line-code',button);
+  button.addEventListener('click',()=>setLine(selectedLine===line.id?null:line.id));
+}
+function setLine(id) {
+  selectedLine=id;
+  document.querySelectorAll('.line-button').forEach(b=>{b.classList.toggle('active',b.dataset.line===id);b.setAttribute('aria-pressed',String(b.dataset.line===id));});
+  for(const [line,g] of lineGroups) g.style.opacity=!id||id===line?'1':'.12';
+  document.querySelectorAll('.station').forEach(g=>g.style.opacity=!id||byLine[id].stations.includes(g.dataset.station)?'1':'.15');
+  $('map-title').replaceChildren(document.createTextNode(id?byLine[id].name:'Hong Kong ')); if(!id) text('span','香港','',$('map-title'));
+  if(id && !byLine[id].stations.includes(selectedStation)) selectStation(byLine[id].stations[Math.floor(byLine[id].stations.length/2)]);
+  renderArrivals();
+}
+$('all-lines').addEventListener('click',()=>setLine(null));
+function selectStation(id) {
+  selectedStation=id;
+  if(selectedLine && !byLine[selectedLine].stations.includes(id)) setLine(null);
+  document.querySelectorAll('.station').forEach(g=>{g.classList.toggle('selected',g.dataset.station===id);g.querySelector('.selected-ring')?.remove();});
+  svg('circle',{r:18,class:'selected-ring'},document.querySelector(`[data-station="${id}"]`));
+  $('station-name').replaceChildren(document.createTextNode(stations[id].name+' '));text('span',stations[id].zh,'',$('station-name'));
+  $('station-lines').replaceChildren(); for(const line of stationLines(id)) { const chip=text('span',line.name,'station-chip',$('station-lines'));chip.style.setProperty('--line',line.color); }
+  renderArrivals();
+}
+const network = new LiveNetwork(()=>{ if(Date.now()-lastRender>400){renderStatus();renderArrivals();lastRender=Date.now();} });
+function renderArrivals() {
+  const now=Date.now(),serving=stationLines(selectedStation).filter(l=>!selectedLine||l.id===selectedLine),boards=serving.map(l=>network.boards.get(`${l.id}-${selectedStation}`));
+  const fresh=boards.filter(b=>isFresh(b,now));
+  $('station-updated').textContent=fresh.length?`Updated ${new Date(Math.max(...fresh.map(b=>b.stamp))).toLocaleTimeString('en-GB',{timeZone:'Asia/Hong_Kong'})} HKT`:'No fresh arrival data';
+  $('arrivals').replaceChildren();
+  let entries=[];
+  for(const board of fresh) for(const direction of ['UP','DOWN']) {
+    entries.push(...board.rows.filter(r=>r.direction===direction&&r.arrival>=now-15000).sort((a,b)=>a.arrival-b.arrival).slice(0,2).map(row=>({...row,line:board.line,delay:board.delay})));
+  }
+  entries.sort((a,b)=>a.arrival-b.arrival);
+  for(const row of entries) {
+    const card=text('div','','arrival',$('arrivals'));card.style.setProperty('--line',byLine[row.line].color);
+    const left=text('div','','',card);text('div',stations[row.dest]?.name??row.dest,'dest',left);text('small',`${row.line} · Platform ${row.platform}${row.delay?' · Delay reported':''}`,'',left);
+    const remaining=Math.max(0,Math.ceil((row.arrival-now)/60000));const eta=text('div',remaining?String(remaining):'Due','eta',card);if(remaining) text('small','min','',eta);
+  }
+  if(!entries.length) text('p',network.busy&&!boards.some(Boolean)?'Connecting to MTR’s live arrival boards…':'No upcoming arrivals available for this station. Services may have ended, or the feed may be unavailable.','empty',$('arrivals'));
+  const unavailable=serving.filter((l,i)=>!isFresh(boards[i],now));
+  if(entries.length&&unavailable.length) text('p',`Arrival data unavailable: ${unavailable.map(l=>l.name).join(', ')}.`,'empty',$('arrivals'));
+  const disruptions=boards.filter(b=>b&&!b.error&&(!b.ok||b.delay));
+  for(const b of disruptions) if(b.message!=='successful'||b.delay) text('p',`${b.line}: ${b.delay?'MTR reports a delay. ':''}${b.message==='successful'?'':b.message}`,'empty',$('arrivals'));
+}
+function renderStatus() {
+  const boards=[...network.boards.values()], fresh=boards.filter(b=>isFresh(b)),total=lines.reduce((n,l)=>n+l.stations.length,0);
+  $('connection').classList.toggle('offline',fresh.length===0&&!network.busy);
+  $('connection-label').textContent=network.busy&&!boards.length?'Connecting':fresh.length===total?'Live feed':fresh.length?'Partial live feed':network.busy?'Connecting':'Feed unavailable';
+  $('coverage').textContent=`${fresh.length} / ${total} station feeds · 30s refresh`;
+  const failed=boards.filter(b=>!isFresh(b)).length;
+  $('notice').hidden=network.busy||(!failed&&fresh.length>0);
+  $('notice').textContent=fresh.length===0?'Live arrivals are unavailable right now. The network map remains available; train estimates will return automatically when fresh data resumes.':`${failed} station feeds are unavailable or stale. Only fresh arrival data appears on the moving map.`;
+}
+let lastFrame=0,lastStats=0;
+function animate(now) {
+  requestAnimationFrame(animate);
+  if(document.hidden||now-lastFrame<50) return;
+  lastFrame=now;
+  const current=estimates(network.boards);
+  if(initialFreeze && current.length && !network.busy){frozen=current;initialFreeze=false;}
+  const items=paused?frozen.filter(item=>current.some(c=>c.key===item.key&&c.arrival===item.arrival)):current;
+  const visible=items.filter(e=>!selectedLine||e.line===selectedLine),keys=new Set(visible.map(e=>e.key));
+  for(const [key,el] of markerElements) if(!keys.has(key)){el.remove();markerElements.delete(key);}
+  for(const item of visible) {
+    let el=markerElements.get(item.key);
+    if(!el) { el=svg('g',{class:'train-marker'},trainGroup);svg('rect',{x:-10,y:-4.5,width:20,height:9,rx:4,fill:byLine[item.line].color},el);svg('rect',{x:3,y:-2,width:3,height:4,rx:1,class:'train-light'},el);svg('title',{},el);el.addEventListener('click',()=>selectStation(item.to));markerElements.set(item.key,el); }
+    const a=stations[item.from],b=stations[item.to],offset=edgeOffsets.get(`${item.line}-${[item.from,item.to].sort().join('-')}`)??{x:0,y:0};
+    const x=a.x+(b.x-a.x)*item.progress+offset.x,y=a.y+(b.y-a.y)*item.progress+offset.y,angle=Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI;
+    el.setAttribute('transform',`translate(${x} ${y}) rotate(${angle})`);
+    el.querySelector('title').textContent=`${byLine[item.line].name} → ${stations[item.dest]?.name??item.dest}; approaching ${b.name} (estimated)`;
+  }
+  $('train-count').textContent=String(visible.length);
+  if(now-lastStats>5000){renderStatus();renderArrivals();lastStats=now;}
+}
+$('pause').setAttribute('aria-pressed',String(paused));$('pause').setAttribute('aria-label',paused?'Resume train animation':'Pause train animation');$('pause').textContent=paused?'▷':'Ⅱ';
+$('pause').addEventListener('click',()=>{paused=!paused;initialFreeze=false;frozen=estimates(network.boards);$('pause').setAttribute('aria-pressed',String(paused));$('pause').setAttribute('aria-label',paused?'Resume train animation':'Pause train animation');$('pause').textContent=paused?'▷':'Ⅱ';});
+function applyView(){ $('network').setAttribute('viewBox',`${view.x} ${view.y} ${view.w} ${view.h}`); }
+function zoom(factor){const w=Math.min(2000,Math.max(400,view.w*factor)),h=w*1100/1540;view={x:view.x+(view.w-w)/2,y:view.y+(view.h-h)/2,w,h};applyView();}
+$('zoom-in').addEventListener('click',()=>zoom(.75));$('zoom-out').addEventListener('click',()=>zoom(1/.75));$('fit').addEventListener('click',()=>{view={x:0,y:0,w:1540,h:1100};applyView();});
+$('network').addEventListener('wheel',e=>{e.preventDefault();zoom(e.deltaY>0?1.12:.89);},{passive:false});
+let drag=null;
+$('network').addEventListener('pointerdown',e=>{if(e.button!==0)return;drag={id:e.pointerId,x:e.clientX,y:e.clientY,v:{...view}};dragged=false;});
+$('network').addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(dx,dy)>4){dragged=true;$('network').setPointerCapture(e.pointerId);}if(!dragged)return;const bounds=$('network').getBoundingClientRect(),scale=Math.min(bounds.width/drag.v.w,bounds.height/drag.v.h);view.x=drag.v.x-dx/scale;view.y=drag.v.y-dy/scale;applyView();});
+for(const event of ['pointerup','pointercancel']) $('network').addEventListener(event,()=>{drag=null;setTimeout(()=>{dragged=false;},0);});
+$('search').addEventListener('input',()=>{
+  const query=$('search').value.trim().toLowerCase(),results=$('search-results');results.replaceChildren();results.hidden=!query;if(!query)return;
+  const found=Object.values(stations).filter(s=>`${s.id} ${s.name} ${s.zh}`.toLowerCase().includes(query)).slice(0,8);
+  for(const s of found){const b=text('button',s.name,'',results);text('small',s.zh,'',b);b.addEventListener('click',()=>{selectStation(s.id);view={x:s.x-450,y:s.y-321.4,w:900,h:642.8};applyView();results.hidden=true;$('search').value='';});}
+  if(!found.length) text('p','No matching stations.','',results);
+});
+$('search').addEventListener('keydown',e=>{if(e.key==='Escape'){$('search-results').hidden=true;$('search').value='';}if(e.key==='Enter')$('search-results').querySelector('button')?.click();});
+$('about-open').addEventListener('click',()=>$('about').showModal());$('about-close').addEventListener('click',()=>$('about').close());
+$('about').addEventListener('click',e=>{if(e.target===$('about')){const r=$('about').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)$('about').close();}});
+function tickClock(){$('clock').textContent=new Date().toLocaleTimeString('en-GB',{timeZone:'Asia/Hong_Kong'});}tickClock();setInterval(tickClock,1000);
+selectStation('ADM');requestAnimationFrame(animate);
+async function poll(){if(!document.hidden)await network.refresh(selectedStation);setTimeout(poll,Math.max(30000,network.backoff-Date.now()));}poll();
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-network.lastCycle>30000)network.refresh(selectedStation);});

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101619">
+  <meta name="description" content="Explore Hong Kong's MTR network with live arrival boards and animated, estimated train positions across all 10 heavy-rail lines.">
+  <title>MTR Live — Hong Kong in motion</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="./src/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="MTR Live home"><svg viewBox="0 0 36 36" aria-hidden="true"><path d="M10 7v22M26 7v22M10 13h16M10 23h16M18 7v22"/></svg><span>MTR<span class="brand-light">LIVE</span><small>HONG KONG IN MOTION</small></span></a>
+    <div class="header-note">A city connected. <span>A network in motion.</span></div>
+    <div class="clock"><span id="clock">--:--:--</span><small>HONG KONG · UTC+8</small></div>
+  </header>
+  <main>
+    <aside class="sidebar">
+      <div class="intro"><div class="eyebrow"><span class="live-dot"></span> THE NETWORK, NOW</div><h1>Every line.<br>One living map.</h1><p>Follow the rhythm of Hong Kong.</p></div>
+      <label class="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input id="search" type="search" placeholder="Find a station…" autocomplete="off" aria-label="Find a station"></label>
+      <div id="search-results" class="search-results" hidden></div>
+      <div class="section-heading"><h2>LINE INDEX</h2><button id="all-lines" class="text-button">Show all</button></div>
+      <nav id="line-index" aria-label="Filter railway lines"></nav>
+      <div class="sidebar-bottom"><span class="little-map">⌁</span><div><strong>10 lines. One city.</strong><p>Heavy rail network · Hong Kong</p></div></div>
+    </aside>
+    <section class="workspace" aria-label="Live MTR network">
+      <div class="map-heading"><div><span class="eyebrow">LIVE NETWORK MAP</span><h2 id="map-title">Hong Kong <span>香港</span></h2></div><div id="connection" class="connection" role="status"><span class="live-dot"></span><span id="connection-label">Connecting</span></div></div>
+      <div class="map-shell" id="map-shell">
+        <div class="map-topline"><span><span class="tiny-train"></span> <b id="train-count">—</b> estimated positions</span><span id="coverage">Fetching arrival boards…</span></div>
+        <svg id="network" viewBox="0 0 1540 1100" role="img" aria-label="Interactive schematic of Hong Kong MTR. Select a station to see arrivals."><defs><pattern id="grid" width="36" height="36" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#273238"/></pattern><filter id="glow"><feGaussianBlur stdDeviation="4"/></filter></defs><rect width="1540" height="1100" fill="url(#grid)"/><g id="map-content"></g></svg>
+        <div class="map-caption"><span class="live-dot"></span> Arrival-based estimates <span class="divider">/</span> Not GPS positions</div>
+        <div class="map-controls"><button id="zoom-in" aria-label="Zoom in">+</button><button id="zoom-out" aria-label="Zoom out">−</button><button id="fit" aria-label="Fit map">⛶</button><span></span><button id="pause" aria-label="Pause train animation" aria-pressed="false">Ⅱ</button></div>
+      </div>
+      <div class="bottom-bar"><span><i class="legend-station"></i> Station <i class="legend-interchange"></i> Interchange <i class="legend-train"></i> Estimated train</span><button class="text-button" id="about-open">How this map works ↗</button></div>
+      <div id="notice" class="notice" role="status" hidden></div>
+      <section class="station-panel" id="station-panel" aria-label="Station arrivals">
+        <div class="station-heading"><div><span class="eyebrow">STATION SPOTLIGHT</span><h2 id="station-name">Admiralty <span>金鐘</span></h2><div id="station-lines" class="station-lines"></div></div><div class="arrivals-heading"><span class="live-dot"></span> Next departures <small id="station-updated">Waiting for live data</small></div></div>
+        <div id="arrivals" class="arrivals" aria-live="polite"></div>
+      </section>
+      <footer><span>Made for a city that never stands still.</span><span>Data © MTR Corporation · <a href="https://data.gov.hk/en-data/dataset/mtr-data2-nexttrain-data" target="_blank" rel="noreferrer">DATA.GOV.HK ↗</a></span></footer>
+    </section>
+  </main>
+  <dialog id="about"><button id="about-close" class="dialog-close" aria-label="Close explanation">×</button><span class="eyebrow">BEHIND THE MOVEMENT</span><h2>Live arrivals.<br>Estimated journeys.</h2><p>MTR publishes the next four arrivals at each station, not train GPS coordinates or unique train identifiers. The moving markers are illustrative estimates of trains approaching a station, not a count of the fleet.</p><p>For each direction, an imminent arrival is positioned on its incoming segment using a typical travel-time estimate. Predictions can move when MTR updates its timetable. Ambiguous branch approaches are omitted. An estimate disappears when its arrival time passes; it is not a persistent train identity.</p><p>We refresh the network approximately every 30 seconds while this tab is visible. Boards older than 90 seconds are excluded from the moving map. A missing marker does not mean no train is running.</p><p>All 10 heavy-rail lines are included. Light Rail and the High Speed Rail are outside this API. The map is a schematic, not a geographic or journey-planning map.</p><a href="https://opendata.mtr.com.hk/doc/Next_Train_API_Spec_v1.7.pdf" target="_blank" rel="noreferrer">Read the official API specification ↗</a></dialog>
+  <script type="module" src="./src/app.js"></script>
+</body></html>
