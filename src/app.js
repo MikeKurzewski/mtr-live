@@ -25,11 +25,11 @@ for(const line of lines) {
   for(const route of line.routes) for(let i=1;i<route.length;i++) {
     const a=stations[route[i-1]],b=stations[route[i]],pair=[a.id,b.id].sort(),key=pair.join('-'),members=shared.get(key),offset=(members.indexOf(line.id)-(members.length-1)/2)*4;
     const geometry=segmentGeometry(line.id,a.id,b.id,offset);railGeometry.set(`${line.id}-${key}`,geometry);
-    svg('path',{d:geometry.d,stroke:line.color,'stroke-width':3.5,fill:'none',class:'line-edge',...(line.id==='EAL' && (a.id==='RAC'||b.id==='RAC') ? {'stroke-dasharray':'7 5'} : {})},group);
+    svg('path',{d:geometry.d,stroke:line.color,'stroke-width':2.5,'vector-effect':'non-scaling-stroke',fill:'none',class:'line-edge',...(line.id==='EAL' && (a.id==='RAC'||b.id==='RAC') ? {'stroke-dasharray':'7 5'} : {})},group);
   }
 }
 // Walking interchanges are not rail segments.
-for(const [a,b] of [['CEN','HOK'],['TST','ETS']]) svg('path',{d:`M${stations[a].x} ${stations[a].y}L${stations[b].x} ${stations[b].y}`,stroke:'#748a90','stroke-width':2,'stroke-dasharray':'4 4'},root);
+for(const [a,b] of [['CEN','HOK'],['TST','ETS']]) svg('path',{d:`M${stations[a].x} ${stations[a].y}L${stations[b].x} ${stations[b].y}`,stroke:'#748a90','stroke-width':1.5,'vector-effect':'non-scaling-stroke','stroke-dasharray':'4 4'},root);
 const pulseGroup=svg('g',{'aria-hidden':'true',class:'station-pulses'},root);
 const stationGroup=svg('g',{},root), trainGroup=svg('g',{'aria-hidden':'true'},root);
 const labelOverrides={};
